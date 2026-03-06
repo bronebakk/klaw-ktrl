@@ -1,0 +1,79 @@
+# docker-compose.test.yml
+# Local test harness for one OpenClaw instance
+# Usage: docker compose -f docker/docker-compose.test.yml up
+
+version: "3.9"
+
+services:
+  openclaw-test:
+    image: openclaw-instance:latest
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.openclaw
+    container_name: openclaw-test-01
+
+    # ── Security ──────────────────────────────────────────────
+    user: "1000:1000"               # non-root; override per-user at runtime
+    read_only: true                  # immutable rootfs
+    tmpfs:
+      - /tmp:size=64m,mode=1777     # writable scratch space only
+
+    # ── Resource limits ───────────────────────────────────────
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+          cpus: "0.5"
+        reservations:
+          memory: 64m
+          cpus: "0.1"
+
+    # ── Network ───────────────────────────────────────────────
+    networks:
+      - openclaw-egress             # outbound-only (see setup-network.sh)
+
+    # ── Volumes ───────────────────────────────────────────────
+    volumes:
+      - openclaw-workspace:/home/openclaw/.openclaw/workspace
+      - openclaw-config:/home/openclaw/.openclaw/config
+
+    # ── Environment ───────────────────────────────────────────
+    environment:
+      # Anthropic
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      # OpenAI (optional)
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      # Telegram bot
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      # Google AI
+      GOOGLE_API_KEY: "${GOOGLE_API_KEY:-}"
+      # Instance metadata
+      OPENCLAW_TENANT_ID: "${OPENCLAW_TENANT_ID:-test}"
+      NODE_ENV: production
+
+    # ── Capabilities (drop all, add none) ─────────────────────
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+    # ── Restart policy ────────────────────────────────────────
+    restart: unless-stopped
+
+    # ── Logging ───────────────────────────────────────────────
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  openclaw-egress:
+    external: true                  # created by setup-network.sh
+    name: openclaw-egress
+
+volumes:
+  openclaw-workspace:
+    driver: local
+  openclaw-config:
+    driver: local
