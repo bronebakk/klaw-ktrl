@@ -253,6 +253,7 @@
 			await sleep(800);
 
 			deployedBotUsername = telegramBotUsername;
+			document.cookie = `klaw_user_id=${userId}; path=/; max-age=${60 * 60 * 24 * 365}`;
 			deployState = 'done';
 		} catch (err: unknown) {
 			deployError = err instanceof Error ? err.message : String(err);

@@ -1,4 +1,11 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
+
+	let hasInstance = $state(false);
+
+	onMount(() => {
+		hasInstance = document.cookie.split(';').some((c) => c.trim().startsWith('klaw_user_id='));
+	});
 </script>
 
 <div class="flex flex-col min-h-screen">
@@ -26,13 +33,23 @@
 			</p>
 
 			<div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-				<a
-					href="/wizard"
-					class="inline-flex items-center gap-2 px-8 py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-lg transition-colors text-base"
-				>
-					Kom i gang
-					<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-				</a>
+				{#if hasInstance}
+					<a
+						href="/dashboard"
+						class="inline-flex items-center gap-2 px-8 py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-lg transition-colors text-base"
+					>
+						Gå til Dashboard
+						<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+					</a>
+				{:else}
+					<a
+						href="/wizard"
+						class="inline-flex items-center gap-2 px-8 py-3 bg-accent hover:bg-accent-hover text-white font-semibold rounded-lg transition-colors text-base"
+					>
+						Kom i gang
+						<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+					</a>
+				{/if}
 				<a href="#features" class="text-sm text-text-muted hover:text-text transition-colors">
 					Les mer ↓
 				</a>
