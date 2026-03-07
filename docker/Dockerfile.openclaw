@@ -41,6 +41,10 @@ RUN mkdir -p /home/node/.openclaw/workspace \
 
 WORKDIR /home/node
 
+# Volumes (mounted by provisioning API):
+# /home/node/.openclaw          ← openclaw.json config (read-only)
+# /home/node/.openclaw/workspace ← user workspace (read-write)
+
 # Port OpenClaw gateway listens on (default 3000)
 EXPOSE 3000
 
