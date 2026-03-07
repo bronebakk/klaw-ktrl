@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from database import get_db, close_db, get_all_instances
 import database as db
+import httpx
+
 from models import (
     CreateInstanceRequest,
     UpdateConfigRequest,
@@ -121,6 +123,95 @@ async def _build_instance_response(record: dict | None, user_id: str) -> Instanc
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
+
+@app.post("/api/validate/telegram-token", tags=["Validation"])
+async def validate_telegram_token(body: dict):
+    """
+    Validate a Telegram bot token against the Telegram API.
+    Returns bot name and username on success. No auth required.
+    """
+    token = body.get("token", "").strip()
+    if not token:
+        raise HTTPException(status_code=400, detail="token is required")
+
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        try:
+            resp = await client.get(f"https://api.telegram.org/bot{token}/getMe")
+            data = resp.json()
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=502, detail=f"Telegram API unreachable: {e}")
+
+    if not data.get("ok"):
+        err = data.get("description", "Invalid token")
+        raise HTTPException(status_code=400, detail=err)
+
+    bot = data["result"]
+    return {
+        "ok": True,
+        "bot_name": bot.get("first_name", ""),
+        "bot_username": bot.get("username", ""),
+        "bot_id": bot.get("id"),
+    }
+
+
+@app.post("/api/validate/ai-key", tags=["Validation"])
+async def validate_ai_key(body: dict):
+    """
+    Test an AI provider API key. No auth required.
+    provider: "anthropic" | "openai" | "google"
+    """
+    provider = body.get("provider", "").strip()
+    key = body.get("key", "").strip()
+
+    if not provider or not key:
+        raise HTTPException(status_code=400, detail="provider and key are required")
+
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        try:
+            if provider == "anthropic":
+                resp = await client.get(
+                    "https://api.anthropic.com/v1/models",
+                    headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
+                )
+                if resp.status_code == 200:
+                    models = [m.get("id") for m in resp.json().get("data", [])[:3]]
+                    return {"ok": True, "models": models, "provider": "Anthropic"}
+                else:
+                    detail = resp.json().get("error", {}).get("message", "Invalid API key")
+                    raise HTTPException(status_code=400, detail=detail)
+
+            elif provider == "openai":
+                resp = await client.get(
+                    "https://api.openai.com/v1/models",
+                    headers={"Authorization": f"Bearer {key}"},
+                )
+                if resp.status_code == 200:
+                    all_models = [m["id"] for m in resp.json().get("data", [])]
+                    preferred = [m for m in all_models if "gpt-4" in m][:3] or all_models[:3]
+                    return {"ok": True, "models": preferred, "provider": "OpenAI"}
+                else:
+                    detail = resp.json().get("error", {}).get("message", "Invalid API key")
+                    raise HTTPException(status_code=400, detail=detail)
+
+            elif provider == "google":
+                resp = await client.get(
+                    f"https://generativelanguage.googleapis.com/v1beta/models?key={key}",
+                )
+                if resp.status_code == 200:
+                    models = [m.get("name", "").split("/")[-1] for m in resp.json().get("models", [])[:3]]
+                    return {"ok": True, "models": models, "provider": "Google"}
+                else:
+                    detail = resp.json().get("error", {}).get("message", "Invalid API key")
+                    raise HTTPException(status_code=400, detail=detail)
+
+            else:
+                raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+        except HTTPException:
+            raise
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=502, detail=f"Provider API unreachable: {e}")
+
 
 @app.get("/api/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
